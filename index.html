@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#eeede4" />
+    <title>The Personal Museum</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="projects.js" defer></script>
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <!-- The museum scene is drawn by script.js. -->
+    <canvas
+      id="museum"
+      aria-label="Scroll or swipe to walk through the museum. Collection offers an accessible gallery of artwork buttons."
+    ></canvas>
+    <!-- Museum name and collection switch -->
+    <header>
+      <a class="brand" href="#">
+        <b>m.</b>
+        <span>
+          THE PERSONAL
+          <br />
+          MUSEUM
+        </span>
+      </a>
+      <button id="view">Collection ↗</button>
+    </header>
+    <!-- Entrance: personalize this introduction. -->
+    <main id="walk">
+      <section id="intro">
+        <p class="eyebrow">A WALK THROUGH MY CREATIVE WORLD</p>
+        <h1>
+          Things I’ve
+          <br />
+          <em>brought to life.</em>
+        </h1>
+        <p>
+          Roblox spaces, little details, and ideas made real.
+          <br />
+          A personal collection, one room at a time.
+        </p>
+        <button id="enter">
+          Step inside
+          <span>↓</span>
+        </button>
+        <p class="small">SCROLL OR SWIPE TO WANDER · TAP A FRAME TO EXPLORE</p>
+      </section>
+      <div id="spacer"></div>
+    </main>
+    <!-- Accessible alternative to walking through the museum -->
+    <section id="collection" hidden>
+      <p class="eyebrow">THE COLLECTION</p>
+      <h2>A closer look.</h2>
+      <p>Sample artwork marks where your screenshots will go.</p>
+      <div id="grid"></div>
+    </section>
+    <!-- Visitor controls -->
+    <aside id="controls">
+      <button
+        id="settings-button"
+        aria-expanded="false"
+        aria-controls="settings"
+      >
+        Gallery settings ⌁
+      </button>
+      <div id="settings" hidden>
+        <label for="curve">
+          Floor curvature
+          <output id="curve-value">Gentle</output>
+        </label>
+        <input id="curve" type="range" min="0" max="100" value="55" />
+        <div class="range-label">
+          <span>Flat</span>
+          <span>Spherical</span>
+        </div>
+        <p>Adjust the curve, or move left for a straight hallway.</p>
+      </div>
+    </aside>
+    <footer>
+      <span id="section-name">THE ENTRANCE</span>
+      <div class="journey">
+        <span id="number">00 / 02</span>
+        <div class="track"><i id="progress"></i></div>
+      </div>
+      <span class="footer-note">AN INTERACTIVE PORTFOLIO</span>
+    </footer>
+    <div id="hint" hidden>Scroll / swipe to walk ↓</div>
+    <section id="ending" hidden>
+      <p class="eyebrow">UNTIL THE NEXT IDEA</p>
+      <h2>Thanks for wandering.</h2>
+      <p>There’s always something new in the making.</p>
+      <button id="restart">Back to the entrance ↑</button>
+    </section>
+    <!-- Enlarged artwork and temporary screenshot preview -->
+    <dialog id="detail">
+      <button id="close" aria-label="Close artwork">×</button>
+      <div class="art-view"><img id="detail-image" alt="" /></div>
+      <div class="detail-copy">
+        <p id="detail-section" class="eyebrow"></p>
+        <h2 id="detail-title"></h2>
+        <p id="description"></p>
+        <button id="upload-button">Try your own screenshot ↗</button>
+        <input id="upload" type="file" accept="image/*" hidden />
+        <p class="small">
+          Preview only. Images stay on your device and reset on refresh.
+        </p>
+        <p id="upload-status" role="status"></p>
+      </div>
+    </dialog>
+  </body>
+</html>
