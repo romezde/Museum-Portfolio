@@ -238,42 +238,80 @@ function drawImageTriangle(im, src, dst) {
     i ? context.lineTo(x, y) : context.moveTo(x, y);
   });
   context.closePath();
-  context.clipAtCamera();
+  context.clip();
   const dx = canvas.width / viewportWidth,
     dy = canvas.height / viewportHeight;
   context.setTransform(A * dx, B * dy, C * dx, D * dy, E * dx, G * dy);
   context.drawImage(im, 0, 0);
   context.restore();
 }
-function drawPerspectiveImage(im, v) {
-  if (v.some((p) => p.z <= 0.2)) return;
-  const iw = im.naturalWidth || im.width,
-    ih = im.naturalHeight || im.height,
-    N = 6;
-  const lerp = (u, t) => {
-    const p = {};
-    for (const k of ["x", "y", "z"])
-      p[k] =
-        (v[0][k] * (1 - u) + v[1][k] * u) * (1 - t) +
-        (v[3][k] * (1 - u) + v[2][k] * u) * t;
-    return projectToScreen(p);
-  };
-  for (let j = 0; j < N; j++)
-    for (let i = 0; i < N; i++) {
-      const u = i / N,
-        t = j / N,
-        u2 = (i + 1) / N,
-        t2 = (j + 1) / N,
-        s = [
-          { x: u * iw, y: t * ih },
-          { x: u2 * iw, y: t * ih },
-          { x: u2 * iw, y: t2 * ih },
-          { x: u * iw, y: t2 * ih },
-        ],
-        d = [lerp(u, t), lerp(u2, t), lerp(u2, t2), lerp(u, t2)];
-      drawImageTriangle(im, [s[0], s[1], s[2]], [d[0], d[1], d[2]]);
-      drawImageTriangle(im, [s[0], s[2], s[3]], [d[0], d[2], d[3]]);
+// Clip each image triangle at the camera, keeping its image coordinates.
+// This lets the visible part remain on the wall as the near edge passes us.
+function drawClippedImageTriangle(image, vertices) {
+  const nearPlane = 0.15;
+  const clipped = [];
+
+  for (let i = 0; i < vertices.length; i++) {
+    const current = vertices[i];
+    const following = vertices[(i + 1) % vertices.length];
+    const currentVisible = current.z > nearPlane;
+    const followingVisible = following.z > nearPlane;
+
+    if (currentVisible) clipped.push(current);
+
+    if (currentVisible !== followingVisible) {
+      const amount = (nearPlane - current.z) / (following.z - current.z);
+      const intersection = {};
+      for (const key of ["x", "y", "z", "u", "v"]) {
+        intersection[key] =
+          current[key] + (following[key] - current[key]) * amount;
+      }
+      intersection.z = nearPlane;
+      clipped.push(intersection);
     }
+  }
+
+  for (let i = 1; i < clipped.length - 1; i++) {
+    const triangle = [clipped[0], clipped[i], clipped[i + 1]];
+    drawImageTriangle(
+      image,
+      triangle.map((vertex) => ({ x: vertex.u, y: vertex.v })),
+      triangle.map(projectToScreen),
+    );
+  }
+}
+
+function drawPerspectiveImage(image, corners) {
+  const imageWidth = image.naturalWidth || image.width;
+  const imageHeight = image.naturalHeight || image.height;
+  const subdivisions = 6;
+
+  function imageVertex(u, v) {
+    const vertex = { u: u * imageWidth, v: v * imageHeight };
+    for (const axis of ["x", "y", "z"]) {
+      vertex[axis] =
+        (corners[0][axis] * (1 - u) + corners[1][axis] * u) * (1 - v) +
+        (corners[3][axis] * (1 - u) + corners[2][axis] * u) * v;
+    }
+    return vertex;
+  }
+
+  for (let row = 0; row < subdivisions; row++) {
+    for (let column = 0; column < subdivisions; column++) {
+      const left = column / subdivisions;
+      const right = (column + 1) / subdivisions;
+      const top = row / subdivisions;
+      const bottom = (row + 1) / subdivisions;
+      const vertices = [
+        imageVertex(left, top),
+        imageVertex(right, top),
+        imageVertex(right, bottom),
+        imageVertex(left, bottom),
+      ];
+      drawClippedImageTriangle(image, [vertices[0], vertices[1], vertices[2]]);
+      drawClippedImageTriangle(image, [vertices[0], vertices[2], vertices[3]]);
+    }
+  }
 }
 // 5. DRAWING — frames, overhead signs, floor tiles, and walls.
 function drawArtwork(w) {
@@ -300,8 +338,9 @@ function drawArtwork(w) {
   let v = getWallCorners(w.side, y1, y2, s1, s2);
   if (w.side === 1) v = [v[1], v[0], v[3], v[2]];
   drawPerspectiveImage(w.texture, v);
-  if (v.every((p) => p.z > 0.2)) {
-    hits.push({ work: w, pts: v.map(projectToScreen) });
+  const visibleCorners = clipAtCamera(v);
+  if (visibleCorners.length >= 3) {
+    hits.push({ work: w, pts: visibleCorners.map(projectToScreen) });
   }
   drawPolygon(
     getWallCorners(w.side, y1 - 0.52, y1 - 0.3, s1, s1 + 1),
@@ -332,6 +371,60 @@ function drawSectionSign(s) {
     ),
   );
 }
+// A permanent freestanding canvas at the end of the walk.
+// Edit these lines to personalize the final exhibit.
+const farewellCanvas = document.createElement("canvas");
+farewellCanvas.width = 1400;
+farewellCanvas.height = 900;
+const farewellContext = farewellCanvas.getContext("2d");
+farewellContext.fillStyle = "#f3f0e8";
+farewellContext.fillRect(0, 0, 1400, 900);
+farewellContext.textAlign = "center";
+farewellContext.fillStyle = "#707765";
+farewellContext.font = "22px Arial";
+farewellContext.fillText("UNTIL THE NEXT IDEA", 700, 225);
+farewellContext.fillStyle = "#35392f";
+farewellContext.font = "76px Georgia";
+farewellContext.fillText("Thanks for", 700, 390);
+farewellContext.font = "italic 82px Georgia";
+farewellContext.fillStyle = "#626c50";
+farewellContext.fillText("wandering.", 700, 490);
+farewellContext.fillStyle = "#707765";
+farewellContext.font = "25px Arial";
+farewellContext.fillText(
+  "There’s always something new in the making.",
+  700,
+  610,
+);
+farewellContext.fillRect(625, 695, 150, 2);
+
+function drawFarewellCanvas() {
+  // Stop the walk a few steps in front of the exhibit.
+  const distance = end + 7;
+
+  // Two legs and low feet make the canvas look freestanding.
+  for (const x of [-1.8, 1.8]) {
+    drawPolygon(
+      getFrontCorners(x - 0.055, x + 0.055, 0, 1.2, distance),
+      "#807866",
+    );
+    drawPolygon(
+      getFrontCorners(x - 0.28, x + 0.28, 0.02, 0.09, distance - 0.2),
+      "#807866",
+    );
+  }
+
+  drawPolygon(getFrontCorners(-2.95, 2.95, 0.95, 4.65, distance), "#807866");
+  drawPolygon(
+    getFrontCorners(-2.88, 2.88, 1.02, 4.58, distance - 0.01),
+    "#e3dfd1",
+  );
+  drawPerspectiveImage(
+    farewellCanvas,
+    getFrontCorners(-2.8, 2.8, 1.1, 4.5, distance - 0.02),
+  );
+}
+
 function getHorizonY() {
   return (
     viewportHeight * 0.46 +
@@ -396,13 +489,23 @@ function renderMuseum() {
   }
   const exhibits = [];
   works.forEach((w) => {
-    if (w.s > cameraPosition + 2.85 && w.s < far)
+    // Keep drawing until the far edge of the frame has passed the camera.
+    if (
+      w.s + GALLERY_SETTINGS.artworkMaxWidth / 2 + 0.18 > cameraPosition &&
+      w.s < far
+    )
       exhibits.push({ s: w.s, draw: () => drawArtwork(w) });
   });
   sections.forEach((s) => {
     if (s.start > cameraPosition + 0.2 && s.start < far)
       exhibits.push({ s: s.start, draw: () => drawSectionSign(s) });
   });
+  // This exhibit always exists in the scene; the curved horizon naturally
+  // hides it until the visitor approaches the end.
+  if (end + 7 < far) {
+    exhibits.push({ s: end + 7, draw: drawFarewellCanvas });
+  }
+
   exhibits
     .sort((a, b) => b.s - a.s)
     .forEach((e) => {
@@ -413,7 +516,7 @@ function renderMuseum() {
       ) {
         context.beginPath();
         context.rect(0, 0, viewportWidth, getHorizonY());
-        context.clipAtCamera();
+        context.clip();
       }
       context.globalAlpha = Math.min(1, cameraPosition / 7);
       e.draw();
@@ -423,7 +526,6 @@ function renderMuseum() {
   $("intro").style.opacity = opacity;
   $("intro").style.visibility = opacity ? "visible" : "hidden";
   $("hint").hidden = cameraPosition < 7 || cameraPosition > end - 5 || grid;
-  $("ending").hidden = cameraPosition < end - 5 || grid;
   const current = sections.filter((s) => cameraPosition >= s.start - 3).at(-1);
   $("section-name").textContent = current
     ? current.title.toUpperCase()
@@ -564,7 +666,6 @@ canvas.addEventListener("pointermove", (e) => {
 });
 // 9. BUTTONS, CURVATURE SLIDER, AND LOCAL IMAGE PREVIEW
 $("enter").onclick = () => walkTo(17);
-$("restart").onclick = () => walkTo(0);
 document.querySelector(".brand").onclick = (e) => {
   e.preventDefault();
   if (grid) $("view").click();
@@ -579,7 +680,6 @@ $("view").onclick = () => {
   $("view").textContent = grid ? "Museum view ↗" : "Collection ↗";
   if (grid) {
     scrollTo(0, 0);
-    $("ending").hidden = true;
   } else {
     scrollTo(0, saved);
     onScroll();
